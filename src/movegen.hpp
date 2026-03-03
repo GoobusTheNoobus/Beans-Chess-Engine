@@ -21,6 +21,8 @@ namespace Eyra::MoveGen {
 void GenerateMoves (const Position& pos, MoveList& list);
 MoveList GenerateMoves (const Position& pos);
 
+void Benchmark (const Position& pos);
+
 
 
 

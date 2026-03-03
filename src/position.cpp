@@ -287,7 +287,7 @@ bool Position::CanCastleKingside () const {
         
         if ((occupancy & between_squares) != 0ULL) return false;
 
-        if (IsAttacked(F1, BLACK) || IsAttacked(G1, BLACK)) return false;
+        if (IsAttacked(F1, BLACK)) return false;
 
         return true;
     }
@@ -299,7 +299,7 @@ bool Position::CanCastleKingside () const {
 
         if ((occupancy & between_squares) != 0ULL) return false;
 
-        if (IsAttacked(F8, WHITE) || IsAttacked(G8, WHITE)) return false;
+        if (IsAttacked(F8, WHITE)) return false;
 
         return true;
     }

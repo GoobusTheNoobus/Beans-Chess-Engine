@@ -1,10 +1,12 @@
 CXX = g++
-CXXFLAGS = -std=c++20 -O3 -march=native -mbmi2 -flto \
+CXXFLAGS = -std=c++20 -O3 -march=native -mbmi2 \
            -fno-rtti \
            -DNDEBUG \
            -funroll-loops \
-           -fomit-frame-pointer \
-           -fno-semantic-interposition
+           -fno-semantic-interposition \
+           -g \
+           -flto \
+           -fomit-frame-pointer 
 
 SRC = $(wildcard src/*.cpp)
 OBJ = $(SRC:.cpp=.o)

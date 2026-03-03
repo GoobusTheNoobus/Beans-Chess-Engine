@@ -58,6 +58,13 @@ class Position {
     
 
  private:
+
+    // Game History
+    Move move_history[256];
+    GameInfo info_history[256];
+    uint64_t hash_history[256];
+    uint8_t counter = 0;
+
     // Board and Pieces
     Piece pieces[64];
     Bitboard bitboards[12];
@@ -69,11 +76,7 @@ class Position {
     
     GameInfo info;
 
-    // Game History
-    Move move_history[256];
-    GameInfo info_history[256];
-    uint64_t hash_history[256];
-    uint8_t counter = 0;
+    
 
     // Editting Functions
     void ClearPosition();

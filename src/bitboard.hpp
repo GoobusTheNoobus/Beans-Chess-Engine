@@ -16,12 +16,12 @@
 
 #ifdef _MSC_VER
 #include <intrin.h>
-#define ctz(x) _tzcnt_u64(x)  // MSVC intrinsic for counting trailing zeros
+#define ctz(x) _tzcnt_u64(x) 
 #elif defined(__GNUC__) || defined(__clang__)
-#define ctz(x) __builtin_ctzll(x)  // GCC/Clang built-in function for 64-bit
+#define ctz(x) __builtin_ctzll(x) 
 #else
 #include <bit>
-#define ctz(x) std::countr_zero(x)  // C++20 std::countr_zero (available in C++20 and above)
+#define ctz(x) std::countr_zero(x)  
 #endif
 
 
