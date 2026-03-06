@@ -7,6 +7,7 @@ namespace Eyra {
 // Based on PeSTO's evaluation function
 namespace {
 
+
 Square FlipIndex (Square square) { return Square(square ^ 56); }
 
 constexpr int mg_value[6] = {82, 337, 365, 477, 1025, 0};
@@ -87,7 +88,7 @@ static constexpr int eg_pst[6][64] = {
          0,   0,   0,   0,   0,   0,   0,   0,
         13,   8,   8,  10,  13,   0,   2,  -7,
          4,   7,  -6,   1,   0,  -5,  -1,  -8,
-        13,   9,  -3,  -7,  -7,  -8,   3,  -1,
+        13,   9,  -3,   7,  10,  -8,   3,  -1,
         32,  24,  13,   5,  -2,   4,  17,  17,
         94, 100,  85,  67,  56,  53,  82,  84,
        178, 173, 158, 134, 147, 132, 165, 187,
@@ -97,7 +98,7 @@ static constexpr int eg_pst[6][64] = {
     {
        -29, -51, -23, -15, -22, -18, -50, -64,
        -42, -20, -10,  -5,  -2, -20, -23, -44,
-       -23,  -3,  -1,  15,  10,  -3, -20, -22,
+       -23,  -3,  -1,  15,  10,   3, -20, -22,
        -18,  -6,  16,  25,  16,  17,   4, -18,
        -17,   3,  22,  22,  22,  11,   8, -18,
        -24, -20,  10,   9,  -1,  -9, -19, -41,
@@ -158,7 +159,26 @@ static constexpr int eg_pst[6][64] = {
 
 } // namspace anonymous
 
+
+namespace Engine {
+
+namespace {
+
+bool ShouldStop() {
+    if (search_info.stop.load(std::memory_order_relaxed)) return true;
+
+    if (search_info.max_time_ms > 0) {
+        
+    }
+}
+
+}
+    
+
+}
+
 SearchInfo Engine::search_info;
+Position Engine::position;
 
 
 float Engine::EGWeight (Position& pos) {
@@ -337,6 +357,8 @@ SearchResults Engine::GetBestMove(Position& pos, int depth, Move pv) {
     MoveList moves;
     MoveGen::GenerateMoves(pos, moves);
 
+    moves.sort(pv);
+
     for (Move move: moves) {
         pos.MakeMove(move);
 
@@ -356,6 +378,42 @@ SearchResults Engine::GetBestMove(Position& pos, int depth, Move pv) {
     }
 
     return {best_move, best_score};
+}
+
+void Engine::Go(int depth, int movetime) {
+    search_info.Reset();
+
+    search_info.start_time = steady_clock::now();
+    search_info.max_time_ms = movetime;
+
+    bool mate_found = false;
+
+    Move best_move = 0;
+    int eval = 0;
+
+    for (int current_depth = 1; current_depth <= depth; ++current_depth) {
+        SearchResults result = GetBestMove(position, current_depth, best_move);
+
+        if (result.best_move != 0) {
+            eval = result.score;
+            best_move = result.best_move;
+        }
+        
+
+        if (std::abs(eval) > MAX_CP) {
+            mate_found = true;
+        }
+
+        auto elapsed = duration_cast<milliseconds> (steady_clock::now() - search_info.start_time).count();
+
+        std::vector<Move> pv = {best_move};
+
+        std::cout << "info depth " << current_depth << " cp score " << eval << " nps " << (search_info.nodes * 1000 / std::max<uint64_t>(elapsed, 1) ) << " pv " << MoveToString(best_move) << std::endl;
+
+    }
+
+    std::cout << "bestmove " << MoveToString(best_move) << std::endl;
+
 }
 
 } // namespace Eyra

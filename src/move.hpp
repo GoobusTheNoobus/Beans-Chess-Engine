@@ -2,6 +2,7 @@
 
 #include <ostream>
 #include "type.hpp"
+#include <algorithm>
 
 namespace Eyra {
 enum MoveFlag : uint8_t {
@@ -69,6 +70,19 @@ struct MoveList {
         result += "There are " + std::to_string(count) + " moves in the movelist. \n";
 
         return result;
+    }
+
+    FORCE_INLINE void sort (Move pv) {
+
+        auto score = [pv] (Move m) -> int {
+            if (m == pv) return 10'000'000;
+
+            return 0;
+        };
+
+        std::sort(moves, moves + count, [pv, score](Move a, Move b) {
+            return score(a) > score(b);
+        });
     }
 
     

@@ -37,7 +37,7 @@ struct SearchResults {
 
 namespace Engine {
     extern SearchInfo search_info;
-    extern Position pos;
+    extern Position position;
     
     int Evaluate (Position& pos);
     float EGWeight (Position& pos);

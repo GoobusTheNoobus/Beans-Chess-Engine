@@ -14,19 +14,21 @@ int main () {
 
     std::cout << ENGINE_NAME << ENGINE_VERSION << " by " << ENGINE_AUTHOR << std::endl;
 
-    Position pos;
     constexpr int depth = 6;
-    std::cout << "Analyzing at depth " << depth << std::endl;
 
-    auto start = std::chrono::steady_clock::now();
-    auto result = Engine::GetBestMove(pos, depth, 0);
-    auto end = std::chrono::steady_clock::now();
-    double ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    while (true) {
+        std::string str;
+        std::getline(std::cin, str);
 
-    std::cout << "Duration: " << ms << "ms" << std::endl;
-    std::cout << "NPS: " << static_cast<int>(Engine::search_info.nodes / ms * 1000) << std::endl;
-    std::cout << "Best Move: " << MoveToString(result.best_move) << std::endl;
-    std::cout << "Score (side to move): " << result.score << std::endl;
+        Engine::position.ParseFEN(str);
+
+        auto start = std::chrono::steady_clock::now();
+        Engine::Go(depth, 10000);
+        auto end = std::chrono::steady_clock::now();
+        
+    }
+
+    
 
     return 0;
 }
