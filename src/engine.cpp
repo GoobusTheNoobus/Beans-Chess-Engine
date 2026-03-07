@@ -4,7 +4,7 @@
 
 namespace Eyra {
 
-// Based on PeSTO's evaluation function
+// Evaluation
 namespace {
 
 
@@ -173,12 +173,6 @@ static constexpr int eg_pst[6][64] = {
 
 };
 
-
-
-
-
-
-
 } // namspace anonymous
 
 
@@ -270,42 +264,52 @@ int Engine::Evaluate (Position& pos) {
     return score;
 }
 
-void Engine::Sort (const Position& pos, MoveList& list, Move pv, Move killer_a, Move killer_b) {
+namespace {
 
-    auto score = [pv, pos, killer_a, killer_b] (Move m) -> int {
-        if (m == pv) return 10'000'000;
+int ScoreMove (const Position& pos, Move move, Move pv, Move killer_a, Move killer_b) {
+    if (move == pv) return 10'000'000;
 
-        Piece captured = pos.GetPiece(GetTo(m));
-        MoveFlag flag = GetFlag(m);
+    Piece captured = pos.GetPiece(GetTo(move));
+    MoveFlag flag = GetFlag(move);
 
-        if (pos.GetPiece(GetTo(m)) != NO_PIECE) {
-            int victim = mg_value[TypeOf(captured)];
-            int attacker = mg_value[TypeOf(pos.GetPiece(GetFrom(m)))];
+    if (pos.GetPiece(GetTo(move)) != NO_PIECE) {
+        int victim = mg_value[TypeOf(captured)];
+        int attacker = mg_value[TypeOf(pos.GetPiece(GetFrom(move)))];
 
-            return 1'000'000 + (10'000 * victim) + (1000 - attacker);
-        }
+        return 1'000'000 + (10'000 * victim) + (1000 - attacker);
+    }
 
-        if (GetFlag(m) >= NPROMO) {
+    else if (flag >= NPROMO) {
+        static constexpr int promo_bonus[] = {200, 220, 400, 800};
 
-            static constexpr int promo_bonus[] = {200, 220, 400, 800};
+        return 900'000 + promo_bonus[flag - NPROMO];
+    }
 
-            return 900'000 + promo_bonus[flag - NPROMO];
-        }
+    if (move == killer_a) return 800'000;
+    if (move == killer_b) return 799'999;
 
-        if (m == killer_a) return 800'000;
-        if (m == killer_b) return 700'000;
-        
+    return 0;
 
-        return 0;
-    };
-
-    std::sort(list.begin(), list.end(), [pv, score](Move a, Move b) {
-        return score(a) > score(b);
-    });
-
-
-    
 }
+
+Move PickBestLookingMove (const Position& pos, MoveList& list, Move* current, Move pv, Move killer_a, Move killer_b) {
+    Move* best = current;
+
+    for (Move* m = current + 1; m != list.end(); m++) {
+        if (ScoreMove(pos, *m, pv, killer_a, killer_b) > ScoreMove(pos, *best, pv, killer_a, killer_b)) {
+            best = m;
+        }
+    }
+
+    std::swap(*current, *best);
+
+    return *current;
+}
+
+
+} // namespace anonymous
+
+
 
 int Engine::QSearch (Position& pos, int depth, int alpha, int beta) {
     search_info.nodes++;
@@ -313,7 +317,6 @@ int Engine::QSearch (Position& pos, int depth, int alpha, int beta) {
     if (search_info.stop.load(std::memory_order_relaxed)) {
         return 0;
     }
-
     if (depth == 0) {
         return Evaluate(pos);
     }
@@ -328,7 +331,7 @@ int Engine::QSearch (Position& pos, int depth, int alpha, int beta) {
     MoveList moves;
 
     MoveGen::GenerateMoves(pos, moves);
-    Sort(pos, moves, 0);
+    // Sort(pos, moves, 0);
 
     for (Move move: moves) {
         bool is_noisy = (pos.GetPiece(GetTo(move)) != NO_PIECE || GetFlag(move) >= NPROMO);
@@ -370,25 +373,27 @@ int Engine::Search (Position& pos, int depth, int alpha, int beta) {
     }
 
     if (depth <= 0) {
-        return QSearch(pos, 32, alpha, beta);
+        return QSearch(pos, 16, alpha, beta);
     }
 
     int plies_from_root = search_info.depth - depth;
 
     Color side_moving = pos.SideToMove();
-
     MoveList moves;
-
     MoveGen::GenerateMoves(pos, moves);
 
-    Sort(pos, moves, 0, killers[plies_from_root][0], killers[plies_from_root][1]);
+    // Sort(pos, moves, 0, killers[plies_from_root][0], killers[plies_from_root][1]);
 
     int legal_moves = 0;
-
     int best_score = -INF;
-    
-    for (Move move: moves) {
 
+    bool in_check = pos.IsInCheck();
+    
+    for (Move* m = moves.begin(); m != moves.end(); ++m) {
+        PickBestLookingMove(pos, moves, m, 0, killers[plies_from_root][0], killers[plies_from_root][1]);
+        
+        Move move = *m;
+        Piece captured = pos.GetPiece(GetTo(move));
         pos.MakeMove(move);
 
         // Filter Illegal Immigrants
@@ -397,7 +402,24 @@ int Engine::Search (Position& pos, int depth, int alpha, int beta) {
             continue;
         }
 
-        int score = -Search(pos, depth - 1, -beta, -alpha);
+        
+
+        int score;
+
+        // Late Move Reduction
+        if (legal_moves > 3 && depth >= 3 && !in_check && captured == NO_PIECE && GetFlag(move) < NPROMO) {
+            // Search at a reduced depth
+            score = -Search(pos, depth - 2, -alpha - 1, -alpha);
+
+            // If move is good (raises alpha) research at full depth
+            if (score > alpha) {
+                score = -Search(pos, depth - 1, -beta, -alpha);
+            }
+        } else {
+            score = -Search(pos, depth - 1, -beta, -alpha);
+        }
+
+        
 
         pos.UndoMove();
 
@@ -411,7 +433,7 @@ int Engine::Search (Position& pos, int depth, int alpha, int beta) {
 
         if (alpha >= beta) {
 
-            if (pos.GetPiece(GetTo(move)) == NO_PIECE) {
+            if (captured == NO_PIECE) {
                 StoreKiller(move, plies_from_root);
             }
 
@@ -448,9 +470,14 @@ SearchResults Engine::GetBestMove(Position& pos, int depth, Move pv) {
     MoveList moves;
     MoveGen::GenerateMoves(pos, moves);
 
-    Sort(pos, moves, pv);
+    // Sort(pos, moves, pv);
 
-    for (Move move: moves) {
+    for (Move* m = moves.begin(); m != moves.end(); ++m) {
+
+        PickBestLookingMove(pos, moves, m, pv, 0, 0);
+
+        Move move = *m;
+
         pos.MakeMove(move);
 
         if (pos.IsInCheck(side_moving)) {
@@ -512,7 +539,15 @@ void Engine::Go(int depth, int movetime) {
 
         std::vector<Move> pv = {best_move};
 
-        std::cout << "info depth " << current_depth << " cp score " << eval << " nps " << (search_info.nodes * 1000 / std::max<uint64_t>(elapsed, 1) ) << " pv " << MoveToString(best_move) << std::endl;
+        UCI::InfoDepth (
+            current_depth, 
+            eval,
+            search_info.nodes,
+            elapsed,
+            pv
+        );
+
+        // std::cout << "info depth " << current_depth << " cp score " << eval << " nps " << (search_info.nodes * 1000 / std::max<uint64_t>(elapsed, 1) ) << " pv " << MoveToString(best_move) << std::endl;
 
     }
 

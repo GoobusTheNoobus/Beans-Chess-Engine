@@ -14,7 +14,7 @@ int main () {
 
     std::cout << ENGINE_NAME << ENGINE_VERSION << " by " << ENGINE_AUTHOR << std::endl;
 
-    constexpr int depth = 6;
+    constexpr int depth = 9;
 
     while (true) {
         std::string str;
@@ -34,7 +34,3 @@ int main () {
 }
 
 
-
-
-//d2d3 : 328515
-//b7b5 : 15701

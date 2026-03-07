@@ -5,23 +5,22 @@
 #include <chrono>
 #include <atomic>
 #include <cstring>
+#include "misc.hpp"
+#include "uci.hpp"
 
 using namespace std::chrono;
 
 namespace Eyra {
 
-constexpr int MAX_CP = 10000;
-constexpr int INF    = 30001;
-constexpr int MATE_EVAL = 30000;
+
 
 struct SearchInfo {
-    int depth = 0;
-    uint64_t nodes = 0;
-
     steady_clock::time_point start_time;
+    uint64_t nodes = 0;
+    std::atomic<bool> stop{false};
+    int depth = 0;
     int max_time_ms = 0;
-
-    std::atomic<bool> stop {false};
+    
 
     inline void Reset () {
         depth = 0;
@@ -62,10 +61,8 @@ namespace Engine {
     int QSearch (Position& pos, int depth, int alpha, int beta);
 
     SearchResults GetBestMove (Position& pos, int depth, Move pv);
-
     void Go (int depth_limit, int movetime);
 
-    void Sort (const Position& pos, MoveList& list, Move pv, Move killer_a = 0, Move killer_b = 0);
 } // namespace Engine
 
     
