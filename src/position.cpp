@@ -149,6 +149,9 @@ void Position::ParseFEN(std::string_view fen) {
     }
 
     size_t space = fen.find(' ');
+    if (space == std::string_view::npos)
+        space = fen.size();
+        
     info.rule_50 = std::stoi(std::string(fen.substr(0, space)));
     fen.remove_prefix(space + 1);
 
