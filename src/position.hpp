@@ -7,6 +7,7 @@
 #include <string_view>
 #include "type.hpp"
 #include "move.hpp"
+#include "misc.hpp"
 #include "bitboard.hpp"
 
 #include <iostream>

@@ -57,7 +57,7 @@ namespace Engine {
     int Evaluate (Position& pos);
     float EGWeight (Position& pos);
 
-    int Search (Position& pos, int depth, int alpha, int beta);
+    int Search (Position& pos, int depth, int alpha, int beta, bool can_null_prune);
     int QSearch (Position& pos, int depth, int alpha, int beta);
 
     SearchResults GetBestMove (Position& pos, int depth, Move pv);

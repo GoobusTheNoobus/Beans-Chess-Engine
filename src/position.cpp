@@ -4,7 +4,7 @@ namespace Eyra {
 
 Position::Position() {
     // Set starting position
-    ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    ParseFEN(STARTING_FEN);
 }
 
 Position::Position(std::string_view fen) {
@@ -53,6 +53,8 @@ int Position::GetRuleFifty () const {
 void Position::ParseFEN(std::string_view fen) {
     // Start from empty board
     ClearPosition();
+
+    if (fen == "") fen = STARTING_FEN;
 
     int rank = 7;
     int file = 0;
@@ -258,6 +260,11 @@ void Position::MakeMove(Move move) {
     
     info.ep_square = NO_SQUARE;
 
+    if (move == 0) {
+        // Null Move, do nothing
+        return;
+    }
+
     ClearSquare(from);
 
     switch (flag) {
@@ -380,6 +387,12 @@ void Position::UndoMove() {
     info.castling = undo_info.castling;
     info.ep_square = undo_info.ep_square;
     info.rule_50 = undo_info.rule_50;
+
+
+    if (move == 0) {
+        // Undo a Null Move: Do absolutely nothing 😀😀😀😀
+        return;
+    }
 
     const Color us = side_to_move;
 

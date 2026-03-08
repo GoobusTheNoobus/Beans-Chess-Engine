@@ -365,7 +365,7 @@ int Engine::QSearch (Position& pos, int depth, int alpha, int beta) {
 
 }
 
-int Engine::Search (Position& pos, int depth, int alpha, int beta) {
+int Engine::Search (Position& pos, int depth, int alpha, int beta, bool can_null_prune) {
     search_info.nodes++;
 
     if (search_info.stop.load(std::memory_order_relaxed)) {
@@ -388,6 +388,23 @@ int Engine::Search (Position& pos, int depth, int alpha, int beta) {
     int best_score = -INF;
 
     bool in_check = pos.IsInCheck();
+
+    // Do not use null prune when:
+    // Cannot null prune (being called during null prunee)
+    // In Check (We can't skip turn in check)
+    // Depth is less than 3 (there is no need to do null prune when there is barely any depth left)
+    // When endgame weight is high (High chance of zugswang, where skipping your turn would actually be better than playing a move)
+    if (can_null_prune && !in_check && depth > 3 && EGWeight(pos) < 0.67) {
+        pos.MakeMove(0);
+
+        int null_score = -Search(pos, depth - 3, -beta, -beta + 1, false);
+
+        pos.UndoMove();
+
+        if (null_score >= beta && std::abs(null_score) < MAX_CP) {
+            return beta;
+        }
+    }
     
     for (Move* m = moves.begin(); m != moves.end(); ++m) {
         PickBestLookingMove(pos, moves, m, 0, killers[plies_from_root][0], killers[plies_from_root][1]);
@@ -409,14 +426,14 @@ int Engine::Search (Position& pos, int depth, int alpha, int beta) {
         // Late Move Reduction
         if (legal_moves > 3 && depth >= 3 && !in_check && captured == NO_PIECE && GetFlag(move) < NPROMO) {
             // Search at a reduced depth
-            score = -Search(pos, depth - 2, -alpha - 1, -alpha);
+            score = -Search(pos, depth - 2, -alpha - 1, -alpha, true);
 
             // If move is good (raises alpha) research at full depth
-            if (score > alpha) {
-                score = -Search(pos, depth - 1, -beta, -alpha);
+            if (score > alpha && score < beta) {
+                score = -Search(pos, depth - 1, -beta, -alpha, true);
             }
         } else {
-            score = -Search(pos, depth - 1, -beta, -alpha);
+            score = -Search(pos, depth - 1, -beta, -alpha, true);
         }
 
         
@@ -485,7 +502,7 @@ SearchResults Engine::GetBestMove(Position& pos, int depth, Move pv) {
             continue;
         }
 
-        int score = -Search(pos, depth - 1, -INF, INF);
+        int score = -Search(pos, depth - 1, -INF, INF, true);
 
         pos.UndoMove();
 

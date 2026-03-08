@@ -39,4 +39,8 @@ void UCI::InfoString (const std::string& message) {
     std::cout << "info string " << message << std::endl;
 }
 
+void UCI::BestMove (Move move, Move ponder) {
+    std::cout << MoveToString(move) << std::endl; // TO-DO: Ponder
+}
+
 } // namespace Eyra
