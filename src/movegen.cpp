@@ -211,7 +211,7 @@ void MoveGen::GenerateMoves(const Position& pos, MoveList& list) {
                               : GenerateAll<BLACK>(pos, list);
 }
 
-// Creates new movelist
+// Creates new movelist (deprecated because of return overhead)
 MoveList MoveGen::GenerateMoves(const Position& pos) {
     MoveList list;
     pos.SideToMove() == WHITE ? GenerateAll<WHITE>(pos, list) 

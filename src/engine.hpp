@@ -12,7 +12,38 @@ using namespace std::chrono;
 
 namespace Eyra {
 
+enum class TTFlag: uint8_t {
+    NONE,
+    EXACT,
+    LOWERBOUND,
+    UPPERBOUND
+};
 
+struct TranspositionEntry {
+    Key      key;
+    int16_t eval;
+    uint8_t  depth;
+    TTFlag   flag;
+    Move     best_move;
+};
+
+class TranspositionTable {
+
+public:
+    explicit TranspositionTable(size_t mb);
+
+    void Clear();
+    void Store(Key key, int eval, int depth, TTFlag flag, Move best_move);
+
+    TranspositionEntry* Probe(Key key);
+
+private:
+    std::vector<TranspositionEntry> table;
+    size_t count;
+
+
+
+};
 
 struct SearchInfo {
     steady_clock::time_point start_time;

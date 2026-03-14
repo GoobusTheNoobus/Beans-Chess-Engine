@@ -19,8 +19,8 @@ Bitboard RaycastRook   (Square square, Bitboard blockers);
 
 Bitboard GenerateBlocker (int index, Bitboard mask);
 
-void PrecomputeBishop (Square square);
-void PrecomputeRook   (Square square);
+void PrecomputeBishop (Square square, uint32_t offset);
+void PrecomputeRook   (Square square, uint32_t offset);
 
 // Attack Tables
 
@@ -131,45 +131,14 @@ constexpr Bitboard pawn_table[2][64] = {
     }
 };
 
-/*constexpr Bitboard wpawn_table[64] = {
-    0x0000000000000200ULL, 0x0000000000000500ULL, 0x0000000000000A00ULL, 0x0000000000001400ULL,
-    0x0000000000002800ULL, 0x0000000000005000ULL, 0x000000000000A000ULL, 0x0000000000004000ULL,
-    0x0000000000020000ULL, 0x0000000000050000ULL, 0x00000000000A0000ULL, 0x0000000000140000ULL,
-    0x0000000000280000ULL, 0x0000000000500000ULL, 0x0000000000A00000ULL, 0x0000000000400000ULL,
-    0x0000000002000000ULL, 0x0000000005000000ULL, 0x000000000A000000ULL, 0x0000000014000000ULL,
-    0x0000000028000000ULL, 0x0000000050000000ULL, 0x00000000A0000000ULL, 0x0000000040000000ULL,
-    0x0000000200000000ULL, 0x0000000500000000ULL, 0x0000000A00000000ULL, 0x0000001400000000ULL,
-    0x0000002800000000ULL, 0x0000005000000000ULL, 0x000000A000000000ULL, 0x0000004000000000ULL,
-    0x0000020000000000ULL, 0x0000050000000000ULL, 0x00000A0000000000ULL, 0x0000140000000000ULL,
-    0x0000280000000000ULL, 0x0000500000000000ULL, 0x0000A00000000000ULL, 0x0000400000000000ULL,
-    0x0002000000000000ULL, 0x0005000000000000ULL, 0x000A000000000000ULL, 0x0014000000000000ULL,
-    0x0028000000000000ULL, 0x0050000000000000ULL, 0x00A0000000000000ULL, 0x0040000000000000ULL,
-    0x0200000000000000ULL, 0x0500000000000000ULL, 0x0A00000000000000ULL, 0x1400000000000000ULL,
-    0x2800000000000000ULL, 0x5000000000000000ULL, 0xA000000000000000ULL, 0x4000000000000000ULL,
-    0x0000000000000000ULL, 0x0000000000000000ULL, 0x0000000000000000ULL, 0x0000000000000000ULL,
-    0x0000000000000000ULL, 0x0000000000000000ULL, 0x0000000000000000ULL, 0x0000000000000000ULL,
+// ===================================== Sliders and Magic =====================================
+
+struct MagicEntry {
+    Bitboard mask;
+    Bitboard magic;
+    uint32_t offset;
+    uint8_t  shift;
 };
-
-constexpr Bitboard bpawn_table[64] = {
-    0x0000000000000000ULL, 0x0000000000000000ULL, 0x0000000000000000ULL, 0x0000000000000000ULL,
-    0x0000000000000000ULL, 0x0000000000000000ULL, 0x0000000000000000ULL, 0x0000000000000000ULL,
-    0x0000000000000002ULL, 0x0000000000000005ULL, 0x000000000000000AULL, 0x0000000000000014ULL,
-    0x0000000000000028ULL, 0x0000000000000050ULL, 0x00000000000000A0ULL, 0x0000000000000040ULL,
-    0x0000000000000200ULL, 0x0000000000000500ULL, 0x0000000000000A00ULL, 0x0000000000001400ULL,
-    0x0000000000002800ULL, 0x0000000000005000ULL, 0x000000000000A000ULL, 0x0000000000004000ULL,
-    0x0000000000020000ULL, 0x0000000000050000ULL, 0x00000000000A0000ULL, 0x0000000000140000ULL,
-    0x0000000000280000ULL, 0x0000000000500000ULL, 0x0000000000A00000ULL, 0x0000000000400000ULL,
-    0x0000000002000000ULL, 0x0000000005000000ULL, 0x000000000A000000ULL, 0x0000000014000000ULL,
-    0x0000000028000000ULL, 0x0000000050000000ULL, 0x00000000A0000000ULL, 0x0000000040000000ULL,
-    0x0000000200000000ULL, 0x0000000500000000ULL, 0x0000000A00000000ULL, 0x0000001400000000ULL,
-    0x0000002800000000ULL, 0x0000005000000000ULL, 0x000000A000000000ULL, 0x0000004000000000ULL,
-    0x0000020000000000ULL, 0x0000050000000000ULL, 0x00000A0000000000ULL, 0x0000140000000000ULL,
-    0x0000280000000000ULL, 0x0000500000000000ULL, 0x0000A00000000000ULL, 0x0000400000000000ULL,
-    0x0002000000000000ULL, 0x0005000000000000ULL, 0x000A000000000000ULL, 0x0014000000000000ULL,
-    0x0028000000000000ULL, 0x0050000000000000ULL, 0x00A0000000000000ULL, 0x0040000000000000ULL,
-};*/
-
-// Slider Masks and stuff
 
 constexpr Bitboard bishop_mask[64] = {
     0x0040201008040200ULL, 0x0000402010080400ULL, 0x0000004020100A00ULL, 0x0000000040221400ULL,
@@ -272,8 +241,14 @@ constexpr Bitboard bishop_magic[64] = {
     0x0001000042304105ULL, 0x0010008830412A00ULL, 0x2520081090008908ULL, 0x40102000A0A60140ULL,
 };
 
-Bitboard bishop_table[64][1 << 9];
-Bitboard rook_table[64][1 << 12];
+constexpr int bishop_size = 5248;
+constexpr int rook_size = 102400;
+
+Bitboard bishop_table[bishop_size];
+Bitboard rook_table[rook_size];
+
+MagicEntry bishop_entries[64];
+MagicEntry rook_entries[64];
 
 Bitboard square_bb[64];
 
@@ -281,24 +256,20 @@ Bitboard square_bb[64];
 int HashBishop (Square square, Bitboard blockers) {
     #if defined(__BMI2__) && !defined(NO_PEXT)  
     // PEXT Hashing which I dont think I have
-    int index = _pext_u64(blockers, bishop_mask[square]);
-    return index;
+    return _pext_u64(blockers, bishop_mask[square]);
 #else
     // Magic fallback 
-    int index = ((blockers & bishop_mask[square]) * bishop_magic[square]) >> (64 - bishop_relevancy[square]);
-    return index;
+    return ((blockers & bishop_mask[square]) * bishop_magic[square]) >> (64 - bishop_relevancy[square]);
 #endif
 }
 
 int HashRook (Square square, Bitboard blockers) {
     #if defined(__BMI2__) && !defined(NO_PEXT)  
     // PEXT Hashing which I dont think I have
-    int index = _pext_u64(blockers, rook_mask[square]);
-    return index;
+    return _pext_u64(blockers, rook_mask[square]);
 #else
     // Magic fallback 
-    int index = ((blockers & rook_mask[square]) * rook_magic[square]) >> (64 - rook_relevancy[square]);
-    return index;
+    return ((blockers & rook_mask[square]) * rook_magic[square]) >> (64 - rook_relevancy[square]);
 #endif
 }
 
@@ -433,27 +404,42 @@ Bitboard GenerateBlocker (int index, Bitboard mask) {
     return blockers;
 }
 
-void PrecomputeBishop (Square square) {
+void PrecomputeBishop (Square square, uint32_t offset) {
+    bishop_entries[square] = {
+        bishop_mask[square],
+        bishop_magic[square],
+        offset,
+        (uint8_t)(64 - bishop_relevancy[square])
+    };
+
+
+
     for (int i = 0; i < (1 << bishop_relevancy[square]); i++) {
         
         Bitboard blockers = GenerateBlocker(i, bishop_mask[square]);
 
-        Bitboard attacks = RaycastBishop(square, blockers);
-
-        bishop_table[square][HashBishop(square, blockers)] = attacks;
+        int index = HashBishop(square, blockers);
+        bishop_table[offset + index] = RaycastBishop(square, blockers);
     }
 }
 
     
 
-void PrecomputeRook (Square square) {
+void PrecomputeRook (Square square, uint32_t offset) {
+    rook_entries[square] = {
+        rook_mask[square],
+        rook_magic[square],
+        offset,
+        (uint8_t)(64 - rook_relevancy[square])
+    };
+
     for (int i = 0; i < (1 << rook_relevancy[square]); i++) {
         
         Bitboard blockers = GenerateBlocker(i, rook_mask[square]);
 
-        Bitboard attacks = RaycastRook(square, blockers);
+        int index = HashRook(square, blockers);
 
-        rook_table[square][HashRook(square, blockers)] = attacks;
+        rook_table[offset + index] = RaycastRook(square, blockers);
     }
 }
 
@@ -466,13 +452,21 @@ namespace Eyra::Bitboards {
 
 
 void Init() {
+
+    uint32_t rook_offset   = 0;
+    uint32_t bishop_offset = 0;
+
     for (Square square = A1; square < 64; ++square) {
-        PrecomputeBishop(square);
-        PrecomputeRook(square);
+        PrecomputeBishop(square, bishop_offset);
+        PrecomputeRook(square, rook_offset);
 
         // std::cout << "0x" << std::hex << std::uppercase << std::setw(16) << std::setfill('0') << ComputeRookMask(square) << "ULL," << (((square + 1) % 4 == 0) ? "\n" : "" );
         
         square_bb[square] = 1ULL << square;
+
+        bishop_offset += 1 << bishop_relevancy[square];
+        rook_offset   += 1 << rook_relevancy[square];
+
     }
     
 }
@@ -481,13 +475,28 @@ Bitboard SquareBB (Square square) {
     return square_bb[square];
 }
 
-Bitboard GetRookAttacks (Square square, Bitboard occupancy) {
-    return rook_table[square][HashRook(square, occupancy)];
+
+Bitboard GetBishopAttacks(Square square, Bitboard occupancy) {
+    const MagicEntry& m = bishop_entries[square];
+
+#if defined(__BMI2__) && !defined(NO_PEXT)   
+    return bishop_table[m.offset + _pext_u64(occupancy, m.mask)];
+#else
+    return bishop_table[m.offset + (((occupancy & m.mask) * m.magic) >> m.shift)];
+#endif
 }
 
-Bitboard GetBishopAttacks (Square square, Bitboard occupancy) {
-    return bishop_table[square][HashBishop(square, occupancy)];
+Bitboard GetRookAttacks(Square square, Bitboard occupancy) {
+    const MagicEntry& m = rook_entries[square];
+
+#if defined(__BMI2__) && !defined(NO_PEXT)    
+    return rook_table[m.offset + _pext_u64(occupancy, m.mask)];
+#else
+    return rook_table[m.offset + (((occupancy & m.mask) * m.magic) >> m.shift)];
+#endif
+
 }
+
 
 template <Color c>
 Bitboard GetPawnAttacks (Square square) {
@@ -510,4 +519,3 @@ Bitboard GetKingAttacks (Square square) {
 template Bitboard GetPawnAttacks<WHITE>(Square);
 template Bitboard GetPawnAttacks<BLACK>(Square);
 } // namespace Eyra::Bitboards
-

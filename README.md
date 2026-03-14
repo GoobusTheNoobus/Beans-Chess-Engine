@@ -1,2 +1,2 @@
 # Eyra Chess Engine
-Previously the "Beans Chess Engine." Doesn't support UCI yet. 
+Previously the "Beans Chess Engine." Just added multi-threaded UCI support! Planning to maybe put on Lichess

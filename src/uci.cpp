@@ -26,7 +26,7 @@ void Stop() {
 void UCI::InfoDepth (int depth, int eval, uint64_t nodes, uint64_t elapsed, const std::vector<Move>& pv) {
     std::string score;
 
-    if (std::abs(eval > MAX_CP)) {
+    if (std::abs(eval) > MAX_CP) {
         int mate_distance = (MATE_EVAL - std::abs(eval) + 1) / 2;
 
         if (eval < 0) {
@@ -204,7 +204,7 @@ void UCI::Loop () {
         } 
         
         else if (command == "uci") {
-            std::cout << "id name EyraChess" << ENGINE_VERSION << "\n";
+            std::cout << "id name EyraChess " << ENGINE_VERSION << "\n";
             std::cout << "id author GoobusTheNoobus\n";
             std::cout << "uciok" << std::endl;
         } 

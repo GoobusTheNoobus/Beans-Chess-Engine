@@ -156,7 +156,6 @@ void Position::ParseFEN(std::string_view fen) {
         space = fen.size();
         
     info.rule_50 = std::stoi(std::string(fen.substr(0, space)));
-    fen.remove_prefix(space + 1);
 
 
     UpdateOccupancy();

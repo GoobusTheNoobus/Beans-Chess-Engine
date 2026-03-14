@@ -4,6 +4,38 @@
 
 namespace Eyra {
 
+TranspositionTable::TranspositionTable(size_t mb) {
+    static constexpr size_t entry_size = 16;
+
+    size_t bytes = mb * 1024 * 1024;
+    count = bytes / entry_size;
+
+    table.resize(count);
+
+}
+
+void TranspositionTable::Clear() {
+    std::fill(table.begin(), table.end(), TranspositionEntry{}); // Fill the entire tables memeory chunk with empty entries
+}
+
+void TranspositionTable::Store(Key key, int eval, int depth, TTFlag flag, Move best_move) {
+    TranspositionEntry& entry = table[key % count];
+
+    // Replacement conditions:
+    // - If depth is deeper
+    // - If key is different
+    if (entry.key == 0 || entry.depth <= depth || entry.key != key) {
+        entry = { key, (int16_t)eval, (uint8_t)depth, flag, best_move};
+    }
+
+}
+
+TranspositionEntry* TranspositionTable::Probe(uint64_t key) {
+    TranspositionEntry* entry = &table[key % count];
+
+    return (entry->key == key) ? entry: nullptr;
+}
+
 // Evaluation
 namespace {
 

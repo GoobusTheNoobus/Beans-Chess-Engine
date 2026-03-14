@@ -7,9 +7,10 @@
 namespace Eyra {
 
 // Type Aliases
-using Bitboard = uint64_t;
-using Move = uint32_t;
+using Bitboard       = uint64_t;
+using Move           = uint32_t;
 using CastlingRights = uint8_t;
+using Key            = uint64_t;
 
 // Force Inline Macros
 #if defined(_MSC_VER)
