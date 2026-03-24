@@ -43,9 +43,17 @@ public:
 
     TranspositionEntry* Probe(Key key);
 
-private:
-    std::vector<TranspositionEntry> table;
+    int probe_count;
+    int store_count;
+
     size_t count;
+    std::vector<TranspositionEntry> table;
+
+    int Hashfull();
+
+private:
+    
+    
 
 
 
@@ -54,12 +62,11 @@ private:
 struct SearchInfo 
 {
     steady_clock::time_point start_time;
-    uint64_t nodes = 0;
+    uint64_t nodes;
     std::atomic<bool> stop{false};
-    int depth = 0;
-    int max_time_ms = 0;
+    int depth;
+    int max_time_ms;
     
-
     inline void Reset () {
         depth = 0;
         nodes = 0;
@@ -85,6 +92,8 @@ namespace Engine
     extern Position position;
     extern Move killers[MAX_DEPTH][KILLERS_PER_DEPTH]; // Store 2 killers per each depth
     extern Move history[COLORS][BOARD_SIZE][BOARD_SIZE]; // For History Heuristics: store moves that has previously caused beta cutoff
+
+    extern TranspositionTable tt;
     
 
     inline void ResetKillers() 

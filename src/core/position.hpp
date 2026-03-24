@@ -6,26 +6,24 @@
 #include <sstream>
 #include <string_view>
 #include "core/type.hpp"
-#include "core/move.hpp"
-#include "util/misc.hpp"
-#include "core/bitboard.hpp"
-#include <iostream>
+
 
 namespace Eyra
 {
     struct GameInfo
     {
-        uint8_t rule_50 = 0;
-        Square ep_square = NO_SQUARE;
-        CastlingRights castling = 0;
+        uint8_t        rule_50;
+        Square         ep_square = NO_SQUARE;
+        CastlingRights castling;
     };
 
     struct UndoInfo
     {
-        uint8_t rule_50 = 0;
-        Square ep_square = NO_SQUARE;
+        Key            hash;
+        uint8_t        rule_50 = 0;
+        Square         ep_square = NO_SQUARE;
         CastlingRights castling = 0;
-        Piece captured;
+        Piece          captured;
     };
 
     class Position
@@ -40,11 +38,12 @@ namespace Eyra
         Bitboard GetBitboard(PieceType pt, Color color) const;
         Bitboard GetBitboard(Color color) const;
         Bitboard GetOccupancy() const;
-        Piece GetPiece(Square square) const;
-        Color SideToMove() const;
+        Piece    GetPiece(Square square) const;
+        Color    SideToMove() const;
+        Square   GetEPSquare() const;
+        int      GetRuleFifty() const;
         CastlingRights GetCastlingRights() const;
-        Square GetEPSquare() const;
-        int GetRuleFifty() const;
+        Key      Hash() const;
 
         void ParseFEN(std::string_view fen);
         std::string ToString() const;
@@ -54,10 +53,13 @@ namespace Eyra
         void MakeMove(const std::string& string_move);
         void UndoMove();
 
-        // Checks / attacks
+        // Search used functions
         bool IsAttacked(Square square, Color c) const;
         bool IsInCheck(Color c) const;
         bool IsInCheck() const;
+        bool IsRepetition() const;
+
+        bool IsLegal(Move move);
 
         // Castling
         bool CanCastleKingside() const;
@@ -67,7 +69,6 @@ namespace Eyra
         // Game history
         Move move_history[256];
         UndoInfo info_history[256];
-        uint64_t hash_history[256];
         uint8_t ply;
 
         // Board and pieces
@@ -79,6 +80,7 @@ namespace Eyra
         // Game state
         Color side_to_move;
         GameInfo info;
+        Key hash;
 
         // Internal helpers
         void ClearPosition();
@@ -87,7 +89,7 @@ namespace Eyra
         void SetSquare(Square square, Piece piece);
     };
 
-    FORCE_INLINE std::ostream& operator<<(std::ostream& os, const Position& pos)
+    inline std::ostream& operator<<(std::ostream& os, const Position& pos)
     {
         os << pos.ToString();
         return os;

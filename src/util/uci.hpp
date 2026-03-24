@@ -7,7 +7,7 @@
 
 namespace Eyra::UCI {
 
-    void InfoDepth  (int depth, int score, uint64_t nodes, uint64_t elasped, const std::vector<Move>& pv);
+    void InfoDepth  (int depth, int score, uint64_t nodes, uint64_t elasped, const std::vector<Move>& pv, int hashfull);
     void InfoString (const std::string& message);
 
     void BestMove (Move move, Move ponder=0);

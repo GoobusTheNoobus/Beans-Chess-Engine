@@ -54,10 +54,10 @@ enum Square: uint8_t
 };
 
 
-inline constexpr Color Opposite (Color c) { return (c == WHITE) ? BLACK : WHITE; }
-inline constexpr Color PieceColor (Piece piece) { return Color(piece / 6); }
+inline constexpr Color Opposite (Color c)                { return (c == WHITE) ? BLACK : WHITE; }
+inline constexpr Color PieceColor (Piece piece)          { return Color(piece / 6); }
 inline constexpr Piece MakePiece (PieceType pt, Color c) { return Piece(pt + 6 * c); }
-inline constexpr PieceType TypeOf (Piece piece) { return PieceType(piece % 6); }
+inline constexpr PieceType TypeOf (Piece piece)          { return PieceType(piece % 6); }
 
 inline std::string SquareToString (Square square) 
 {
@@ -71,6 +71,9 @@ inline std::string SquareToString (Square square)
 // Operator Overloads
 inline Square& operator++(Square& s) { return s = Square(s + 1); }
 inline Square operator++(Square& s, int) { Square t = s; ++s; return t; }
+
+inline Piece& operator++(Piece& s) { return s = Piece(s + 1); }
+inline Piece operator++(Piece& s, int) { Piece t = s; ++s; return t; }
 
 // General Constants
 constexpr int BOARD_SIZE = 64;

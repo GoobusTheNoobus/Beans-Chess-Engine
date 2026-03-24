@@ -15,6 +15,8 @@ int main ()
 
     std::cout << ENGINE_NAME << ENGINE_VERSION << " by " << ENGINE_AUTHOR << std::endl;
 
+    
+
     UCI::Loop();
 
     return 0;

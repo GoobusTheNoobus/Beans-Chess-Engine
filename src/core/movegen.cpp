@@ -1,5 +1,9 @@
 #include "core/movegen.hpp"
 
+#include "core/type.hpp"
+#include "core/position.hpp"
+#include "core/bitboard.hpp"
+#include "core/move.hpp"
 
 #include <chrono>
 using namespace std::chrono;

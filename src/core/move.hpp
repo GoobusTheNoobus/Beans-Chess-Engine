@@ -1,7 +1,8 @@
 #pragma once
 
-#include <ostream>
 #include "core/type.hpp"
+
+#include <ostream>
 #include <algorithm>
 
 namespace Eyra {
@@ -59,18 +60,19 @@ struct MoveList {
     Move moves[256];
     int count = 0;
 
-    FORCE_INLINE void Push(Move move) { moves[count++] = move; }
-    FORCE_INLINE Move Pop() { return moves[--count]; }
+    inline void Push(Move move) { moves[count++] = move; }
+    inline Move Pop() { return moves[--count]; }
 
     Move operator[] (int i) const { return moves[i]; }
 
     // Iteratable Support
-    FORCE_INLINE Move* begin() { return moves; }
-    FORCE_INLINE Move* end() { return moves + count; }
-    FORCE_INLINE const Move* begin() const { return moves; }
-    FORCE_INLINE const Move* end() const { return moves + count; }
+    inline Move* begin() { return moves; }
+    inline Move* end() { return moves + count; }
+    inline const Move* begin() const { return moves; }
+    inline const Move* end() const { return moves + count; }
 
-    FORCE_INLINE std::string ToString () const {
+    inline std::string ToString () const 
+    {
 
         std::string result;
 
@@ -82,6 +84,18 @@ struct MoveList {
         result += "There are " + std::to_string(count) + " moves in the movelist. \n";
 
         return result;
+    }
+
+    inline bool Contains(Move move) const 
+    {
+        for (Move m: *this) {
+            if (m == move) 
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
     
 };

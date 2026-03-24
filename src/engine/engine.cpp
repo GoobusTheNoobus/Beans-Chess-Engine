@@ -1,4 +1,5 @@
 #include "engine/engine.hpp"
+#include "core/bitboard.hpp"
 
 
 
@@ -22,26 +23,52 @@ TranspositionTable::TranspositionTable(size_t mb)
 void TranspositionTable::Clear() 
 {
     std::fill(table.begin(), table.end(), TranspositionEntry{}); // Fill the entire tables memeory chunk with empty entries
+
+    store_count = 0;
 }
 
 void TranspositionTable::Store(Key key, int eval, int depth, TTFlag flag, Move best_move) 
 {
     TranspositionEntry& entry = table[key % count];
-
+    /*
+    */
     // Replacement conditions:
     // - If depth is deeper
     // - If key is different
-    if (entry.key == 0 || entry.depth <= depth || entry.key != key) {
-        entry = { key, (int16_t)eval, (uint8_t)depth, flag, best_move};
+
+
+
+    if (entry.key != key || (entry.depth < depth && depth > 4)) {
+
+        if (entry.flag == TTFlag::NONE) {
+            store_count++;
+        }
+
+        entry = {key, (int16_t)eval, (uint8_t)depth, flag, best_move};
     }
 
 }
 
-TranspositionEntry* TranspositionTable::Probe(uint64_t key) 
+TranspositionEntry* TranspositionTable::Probe(Key key) 
 {
     TranspositionEntry* entry = &table[key % count];
 
+    probe_count++;
+
     return (entry->key == key) ? entry: nullptr;
+}
+
+int TranspositionTable::Hashfull() {
+
+    // Sample the first 1000 entries
+    int counter = 0;
+    for (int i = 0; i < 1000; ++i) {
+        if (table[i].flag != TTFlag::NONE) {
+            ++counter;
+        }
+    }
+
+    return counter;
 }
 
     // ======================= Evaluation =======================
@@ -59,19 +86,19 @@ namespace
     // PAWN
     {
          0,   0,   0,   0,   0,   0,   0,   0,
-       -35,  -1, -20, -23, -15,  24,  38, -22,
+       -35,  -1, -20, -23, -34,  24,  38, -22,
        -26,  -4,  -4, -10,   3,   3,  33, -12,
-       -27,  -2,  -5,  12,  17,   6,  10, -25,
-       -14,  13,   6,  21,  23,  12,  17, -23,
-        -6,   7,  26,  31,  65,  56,  25, -20,
-        98, 134,  61,  95,  68, 126,  34, -11,
+       -27,  -2,  -5,  40,  57,   6,  10, -25,
+       -14,  13,   6,  60,  73,  12,  17, -23,
+        -6,   7,  26,  76,  85,  56,  25, -20,
+        98, 134,  61, 125, 147, 126,  34, -11,
          0,   0,   0,   0,   0,   0,   0,   0
     },
     // KNIGHT
     {
       -105, -21, -58, -33, -17, -28, -19, -23,
        -29, -53, -12,  -3,  -1,  18, -14, -19,
-       -23,  -9,  12,  10,  19,  17,  25, -16,
+       -23,  -9,  15,  10,  19,  17,  25, -16,
        -13,   4,  16,  13,  28,  19,  21,  -8,
         -9,  17,  19,  53,  37,  69,  18,  22,
        -47,  60,  37,  65,  84, 129,  73,  44,
@@ -80,7 +107,7 @@ namespace
     },
     // BISHOP
     {
-       -33,  -3, -14, -21, -13, -12, -39, -21,
+       -33,  -3, -14, -21, -13,   0, -39, -21,
          4,  15,  16,   0,   7,  21,  33,   1,
          0,  15,  15,  15,  14,  27,  18,  10,
         -6,  13,  13,  26,  34,  12,  10,   4,
@@ -103,8 +130,8 @@ namespace
     // QUEEN
     {
         -1, -18,  -9,  10, -15, -25, -31, -50,
-       -35,  -8,  11,   2,   8,  15,  -3,   1,
-       -14,   2, -11,  -2,  -5,   2,  14,   5,
+       -35,  -8,  11,   2,   0,  15,  -3,   1,
+       -14,   2, -11,  -2,  -5,   0,  14,   5,
         -9, -26,  -9, -10,  -2,  -4,   3,  -3,
        -27, -27, -16, -16,  -1,  17,  -2,   1,
        -13, -17,   7,   8,  29,  56,  47,  57,
@@ -222,92 +249,89 @@ namespace Engine
         return 1 - std::min (1.0f, static_cast<float> (phase) / MAX_GAME_PHASE);
     }
 
-    int Evaluate (Position& pos) {
+    int Evaluate(Position& pos)
+    {
+        static constexpr int knight_mobility_bonus = 3;
+        static constexpr int bishop_mobility_bonus = 2;
+        static constexpr int rook_mobility_bonus   = 3;
+        static constexpr int queen_mobility_bonus  = 2;
 
-        static constexpr int knight_mobility_bonus = 2;
-        static constexpr int bishop_mobility_bonus = 1;
-        static constexpr int rook_mobility_bonus   = 1;
-        static constexpr int queen_mobility_bonus  = 1;
-
-        // Draw by 50 move rule
-        if (pos.GetRuleFifty() >= 100) {
+        if (pos.GetRuleFifty() >= 100)
             return 0;
-        }
 
         float weight = EGWeight(pos);
-
         int score = 0;
 
-        for (Square square = A1; square < NO_SQUARE; ++square) 
+        // Evaluates Material AND Mobility
+        auto eval_piece = [&](Bitboard bb, PieceType pt, bool white)
         {
-            Piece piece = pos.GetPiece(square);
-
-            if (piece == NO_PIECE) continue;
-
-            PieceType pt = TypeOf(piece);
-            Color color = PieceColor(piece);
-
-            if (color == WHITE) 
+            while (bb)
             {
-                // Material + PST
-                score += static_cast<int>(weight * (eg_pst[pt][square] + eg_value[pt]) + (1 - weight) * (mg_pst[pt][square] + mg_value[pt]));
+                int sq = ctz(bb);
+                sq = white ? sq: FlipIndex(Square(sq));
+                bb &= bb - 1;
 
-                // Mobility 
-                switch (pt) {
-                    case KNIGHT:
-                        score += popcount(Bitboards::GetKnightAttacks(square)) * knight_mobility_bonus;
-                        break;
-                    case BISHOP:
-                        score += popcount(Bitboards::GetBishopAttacks(square, pos.GetOccupancy())) * bishop_mobility_bonus;
-                        break;
-                    case ROOK:
-                        score += popcount(Bitboards::GetRookAttacks(square, pos.GetOccupancy())) * rook_mobility_bonus;
-                        break;
-                    case QUEEN:
-                        score += popcount(Bitboards::GetBishopAttacks(square, pos.GetOccupancy()) | Bitboards::GetRookAttacks(square, pos.GetOccupancy())) * queen_mobility_bonus;
-                        break;
-                    default:
-                        break;
-                    
+                // Material
+                int mg = mg_pst[pt][sq] + mg_value[pt];
+                int eg = eg_pst[pt][sq] + eg_value[pt];
 
-                }
-                
-            } else 
-            {
-                // Material + PST
-                score -= static_cast<int>(weight * (eg_pst[pt][FlipIndex(square)] + eg_value[pt]) + (1 - weight) * (mg_pst[pt][FlipIndex(square)] + mg_value[pt]));
-
+                int val = static_cast<int>(weight * eg + (1 - weight) * mg);
 
                 // Mobility
-                switch (pt) {
-                    case KNIGHT:
-                        score -= popcount(Bitboards::GetKnightAttacks(square)) * knight_mobility_bonus;
-                        break;
-                    case BISHOP:
-                        score -= popcount(Bitboards::GetBishopAttacks(square, pos.GetOccupancy())) * bishop_mobility_bonus;
-                        break;
-                    case ROOK:
-                        score -= popcount(Bitboards::GetRookAttacks(square, pos.GetOccupancy())) * rook_mobility_bonus;
-                        break;
-                    case QUEEN:
-                        score -= popcount(Bitboards::GetBishopAttacks(square, pos.GetOccupancy()) | Bitboards::GetRookAttacks(square, pos.GetOccupancy())) * queen_mobility_bonus;
-                        break;
-                    default:
-                        break;
-                    
+                if (pt == KNIGHT) 
+                    val += popcount(Bitboards::GetKnightAttacks(Square(sq))) * knight_mobility_bonus;
 
-                }
+                else if (pt == BISHOP)
+                    val += popcount(Bitboards::GetBishopAttacks(Square(sq), pos.GetOccupancy())) * bishop_mobility_bonus;
+
+                else if (pt == ROOK)
+                    val += popcount(Bitboards::GetRookAttacks(Square(sq), pos.GetOccupancy())) * rook_mobility_bonus;
+
+                else if (pt == QUEEN && weight > 0.5)
+                    val += popcount(Bitboards::GetBishopAttacks(Square(sq), pos.GetOccupancy()) | Bitboards::GetRookAttacks(Square(sq), pos.GetOccupancy())) * queen_mobility_bonus;
+
+                if (white) score += val;
+                else       score -= val;
             }
-        }
+        };
 
-        // Clamp the score so it doesn't get interpreted as a mate
-        score = std::max(-MAX_CP, std::min(score, MAX_CP));
+        // White pieces
+        eval_piece(pos.GetBitboard(W_PAWN),   PAWN,   true);
+        eval_piece(pos.GetBitboard(W_KNIGHT), KNIGHT, true);
+        eval_piece(pos.GetBitboard(W_BISHOP), BISHOP, true);
+        eval_piece(pos.GetBitboard(W_ROOK),   ROOK,   true);
+        eval_piece(pos.GetBitboard(W_QUEEN),  QUEEN,  true);
+        eval_piece(pos.GetBitboard(W_KING),   KING,   true);
 
-        // Negamax
-        score = (pos.SideToMove() == WHITE) ? score: -score;
+        // Black pieces
+        eval_piece(pos.GetBitboard(B_PAWN),   PAWN,   false);
+        eval_piece(pos.GetBitboard(B_KNIGHT), KNIGHT, false);
+        eval_piece(pos.GetBitboard(B_BISHOP), BISHOP, false);
+        eval_piece(pos.GetBitboard(B_ROOK),   ROOK,   false);
+        eval_piece(pos.GetBitboard(B_QUEEN),  QUEEN,  false);
+        eval_piece(pos.GetBitboard(B_KING),   KING,   false);
+
+        
+
+
+        score = std::clamp(score, -MAX_CP, MAX_CP);
+
+        if (pos.SideToMove() == BLACK)
+            score = -score;
 
         return score;
     }
+
+    
+
+    // ======================= Engine States =======================
+
+    SearchInfo search_info;
+    Position position;
+    Move killers[MAX_DEPTH][KILLERS_PER_DEPTH];
+    Move history[COLORS][BOARD_SIZE][BOARD_SIZE];
+
+    TranspositionTable tt(16);
 
     // ======================= Helper Functions =======================
 
@@ -333,8 +357,9 @@ namespace Engine
             return false;
         }
 
-        int ScoreMove (const Position& pos, Move move, Move pv, Move killer_a, Move killer_b) {
-            if (move == pv) return 10'000'000;
+        int ScoreMove (const Position& pos, Move move, Move pv, Move killer_a, Move killer_b, Move tt_move) {
+            if (move == pv)      return 10'000'000;
+            if (move == tt_move) return 9'999'999;
 
             Piece captured = pos.GetPiece(GetTo(move));
             MoveFlag flag = GetFlag(move);
@@ -359,11 +384,11 @@ namespace Engine
 
         }
 
-        Move PickBestLookingMove (const Position& pos, MoveList& list, Move* current, Move pv, Move killer_a, Move killer_b) {
+        Move PickBestLookingMove (const Position& pos, MoveList& list, Move* current, Move pv, Move killer_a, Move killer_b, Move tt_move = 0) {
             Move* best = current;
 
             for (Move* m = current + 1; m != list.end(); m++) {
-                if (ScoreMove(pos, *m, pv, killer_a, killer_b) > ScoreMove(pos, *best, pv, killer_a, killer_b)) {
+                if (ScoreMove(pos, *m, pv, killer_a, killer_b, tt_move) > ScoreMove(pos, *best, pv, killer_a, killer_b, tt_move)) {
                     best = m;
                 }
             }
@@ -375,13 +400,6 @@ namespace Engine
 
 
     } // namespace anonymous
-
-    // ======================= Engine States =======================
-
-    SearchInfo search_info;
-    Position position;
-    Move killers[MAX_DEPTH][KILLERS_PER_DEPTH];
-    Move history[COLORS][BOARD_SIZE][BOARD_SIZE];
 
     // ======================= Search Function Definitions =======================
 
@@ -415,7 +433,7 @@ namespace Engine
             if (!is_noisy) continue;
 
             int gain = std::abs(mg_value[TypeOf(pos.GetPiece(GetTo(move)))])  - std::abs(mg_value[TypeOf(pos.GetPiece(GetFrom(move)))] + 100);
-            if (standpat + gain + 200 < alpha) continue;
+            if (standpat + gain < alpha) continue;
 
             pos.MakeMove(move);
 
@@ -453,22 +471,53 @@ namespace Engine
             return QSearch(pos, 32, alpha, beta);
         }
 
+        if (pos.GetRuleFifty() == 100) {
+            // Drawn Position due to 50 move rule
+            return 0;
+        }
+
+        if (pos.IsRepetition()) {
+            return 0;
+        }
+
         int plies_from_root = search_info.depth - depth;
         Color side_moving = pos.SideToMove();
+
+        TranspositionEntry* entry = tt.Probe(pos.Hash());
+        Move tt_move = 0;
+
+        if (entry != nullptr && entry->key == pos.Hash() && entry->depth >= depth) 
+        {
+            tt_move = entry->best_move;
+
+            const int tt_score = entry->eval;
+
+            // Un-adjust mate scores from TT, since we store as MATE_EVAL
+            // if (tt_score > MAX_CP)  tt_score -= plies_from_root;
+            // if (tt_score < -MAX_CP) tt_score += plies_from_root;
+
+            if (entry->flag == TTFlag::EXACT)      return entry->eval;
+            if (entry->flag == TTFlag::LOWERBOUND) alpha = std::max<int>(alpha, entry->eval);
+            if (entry->flag == TTFlag::UPPERBOUND) beta  = std::min<int>(beta, entry->eval);
+
+            if (alpha >= beta) return tt_score;
+        } 
+        
+
+        
 
         MoveList moves;
         MoveGen::GenerateMoves(pos, moves);
 
         int legal_moves = 0;
         int best_score = -INF;
+        Move best_move = 0;
+
+        TTFlag flag = TTFlag::UPPERBOUND;
 
         bool in_check = pos.IsInCheck();
 
-        // Do not use null prune when:
-        // Cannot null prune (being called during null prunee)
-        // In Check (We can't skip turn in check)
-        // Depth is less than 3 (there is no need to do null prune when there is barely any depth left)
-        // When endgame weight is high (High chance of zugswang, where skipping your turn would actually be better than playing a move)
+        
         if (can_null_prune && !in_check && depth > 3 && EGWeight(pos) < 0.67) 
         {
             pos.MakeMove(0);
@@ -482,9 +531,16 @@ namespace Engine
             }
         }
         
+        // Do not use null prune when:
+        // Cannot null prune (being called during null prunee)
+        // In Check (We can't skip turn in check)
+        // Depth is less than 3 (there is no need to do null prune when there is barely any depth left)
+        // When endgame weight is high (High chance of zugswang, where skipping your turn would actually be better than playing a move)
+        
+        
         for (Move* m = moves.begin(); m != moves.end(); ++m) 
         {
-            PickBestLookingMove(pos, moves, m, 0, killers[plies_from_root][0], killers[plies_from_root][1]);
+            PickBestLookingMove(pos, moves, m, 0, killers[plies_from_root][0], killers[plies_from_root][1], tt_move);
             
             Move move = *m;
             Piece captured = pos.GetPiece(GetTo(move));
@@ -498,6 +554,8 @@ namespace Engine
 
             int score;
 
+            
+
             // Late Move Reduction
             if (legal_moves > 3 && depth >= 3 && !in_check && captured == NO_PIECE && GetFlag(move) < NPROMO) 
             {
@@ -506,10 +564,13 @@ namespace Engine
                 score = -Search(pos, depth - 1 - reduction, -alpha - 1, -alpha, true);
 
                 // If move is good (raises alpha) research at full depth
-                if (score > alpha && score < beta) {
+                if (score > alpha && score < beta) 
+                {
                     score = -Search(pos, depth - 1, -beta, -alpha, true);
                 }
-            } else 
+            } 
+            
+            else 
             {
                 score = -Search(pos, depth - 1, -beta, -alpha, true);
             }
@@ -518,16 +579,23 @@ namespace Engine
 
             pos.UndoMove();
 
-            if (score > best_score) {
+            if (score > best_score) 
+            {
                 best_score = score;
+                best_move = move;
             }
 
             ++legal_moves;
 
-            alpha = std::max(alpha, score);
+            if (score > alpha) 
+            {
+                alpha = score;
+                flag = TTFlag::EXACT;
+            }
 
             if (alpha >= beta) 
             {
+                flag = TTFlag::LOWERBOUND;
 
                 if (captured == NO_PIECE) {
                     StoreKiller(move, plies_from_root);
@@ -553,6 +621,36 @@ namespace Engine
             // Stalemate
             return 0;
         }
+
+        // Store in TT
+
+        // When storing in TT, treat the current position like root
+        // When storing, store mate score
+        // When retrieving, adjust based on plies from root
+        
+        
+        int store_score = best_score;
+        if (store_score > MAX_CP) 
+        {
+            // std::cout << "The score is a mate score. Plies from root: " << plies_from_root << std::endl; 
+            store_score = MAX_CP + 1;
+            flag = TTFlag::LOWERBOUND;
+        }
+            
+        if (store_score < -MAX_CP) 
+        {
+            // std::cout << "The score is a negative mate score. Plies from root: " << plies_from_root << std::endl; 
+            store_score = -MAX_CP - 1;
+            flag = TTFlag::UPPERBOUND;
+        }
+            
+        
+        
+        
+        tt.Store(pos.Hash(), store_score, depth, flag, best_move);
+        
+        
+        // assert(std::abs(best_score) < MATE_EVAL);
 
         return best_score;
     }
@@ -589,6 +687,8 @@ namespace Engine
 
             int score = -Search(pos, depth - 1, -INF, INF, true);
 
+
+
             pos.UndoMove();
 
             if (search_info.nodes % 1024 == 0 && ShouldStop()) {
@@ -611,6 +711,8 @@ namespace Engine
         search_info.Reset();
         ResetKillers();
 
+        // tt.Clear();
+
         search_info.start_time = steady_clock::now();
         search_info.max_time_ms = movetime;
 
@@ -623,8 +725,6 @@ namespace Engine
         {
 
             if (search_info.stop.load(std::memory_order_relaxed)) break;
-
-            if (mate_found) break;
 
             SearchResults result = GetBestMove(position, current_depth, best_move);
 
@@ -642,17 +742,47 @@ namespace Engine
             auto elapsed = duration_cast<milliseconds> (steady_clock::now() - search_info.start_time).count();
 
             std::vector<Move> pv = {best_move};
+            pv.reserve(depth - 2);
+
+            position.MakeMove(best_move);
+
+            int i = 0;
+            for (i = 0; i < depth - 2; ++i) 
+            {
+                TranspositionEntry* entry = tt.Probe(position.Hash());
+
+                if (entry != nullptr && position.IsLegal(entry->best_move) && entry->flag == TTFlag::EXACT) 
+                {
+                    position.MakeMove(entry->best_move);
+                    pv.push_back(entry->best_move);
+                }
+
+                else
+                {
+                    // UCI::InfoString("No PV");
+                    break;
+                } 
+            }
+
+            for (int j = 0; j <= i; ++j) 
+            {
+                position.UndoMove();
+            }
 
             UCI::InfoDepth(
                 current_depth, 
                 eval,
                 search_info.nodes,
                 elapsed,
-                pv
+                pv,
+                tt.Hashfull()
             );
         }
 
         UCI::BestMove(best_move);
+        // UCI::InfoString("Probe count: " + std::to_string(tt.probe_count));
+
+
 
     }
 

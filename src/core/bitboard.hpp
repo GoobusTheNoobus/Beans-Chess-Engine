@@ -1,9 +1,6 @@
 #pragma once
 
 #include "type.hpp"
-#include <iomanip>
-#include <immintrin.h>
-#include <iostream>
 
 #ifdef _MSC_VER
 #include <intrin.h>

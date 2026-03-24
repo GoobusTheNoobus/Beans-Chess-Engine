@@ -1,7 +1,15 @@
 #include "core/position.hpp"
 #include "core/movegen.hpp"
 
+#include "core/move.hpp"
+#include "util/misc.hpp"
+#include "core/bitboard.hpp"
+#include "engine/zobrist.hpp"
+
+#include <iostream>
+
 namespace Eyra {
+    
 
     Position::Position() 
     {
@@ -53,6 +61,10 @@ namespace Eyra {
         return info.rule_50;
     }
 
+    Key Position::Hash() const {
+        return hash;
+    }
+
     // ======================= Basic Editting Functions =======================
 
     void Position::ClearPosition() 
@@ -73,6 +85,8 @@ namespace Eyra {
         info.ep_square = NO_SQUARE;
         info.rule_50 = 0;
         side_to_move = WHITE;
+
+        hash = 0;
     }
 
     void Position::UpdateOccupancy() 
@@ -97,6 +111,8 @@ namespace Eyra {
         occupancy &= nsquare_bb;
 
         pieces[square] = NO_PIECE;
+
+        hash ^= zobrist.GetPieceKey(piece, square);
     }
 
     void Position::SetSquare (Square square, Piece piece) 
@@ -109,6 +125,8 @@ namespace Eyra {
 
         Color color = PieceColor(piece);
         Bitboard square_bb = Bitboards::SquareBB(square);
+
+        hash ^= zobrist.GetPieceKey(piece, square);
 
         pieces[square] = piece;
 
@@ -128,7 +146,7 @@ namespace Eyra {
     void Position::MakeMove(Move move) 
     {
         
-        const Color us = side_to_move;
+        const Color us       = side_to_move;
         const MoveFlag flag  = GetFlag(move);
         const Square from    = GetFrom(move);
         const Square to      = GetTo(move);
@@ -140,13 +158,19 @@ namespace Eyra {
 
         // Append all info before making move
         move_history[ply] = move;
-        info_history[ply] = UndoInfo{info.rule_50, info.ep_square, info.castling, pieces[to]};
+        info_history[ply] = UndoInfo{hash, info.rule_50, info.ep_square, info.castling, pieces[to]};
         // TO-DO: Add Hash
         ply++;
 
         side_to_move = Opposite(side_to_move);
         
-        info.ep_square = NO_SQUARE;
+        if (info.ep_square != NO_SQUARE) {
+            hash ^= zobrist.EnPassantKey(info.ep_square);
+            info.ep_square = NO_SQUARE;
+            hash ^= zobrist.EnPassantKey(info.ep_square);
+        }
+
+        
 
         if (move == 0) {
             // Null Move, do nothing
@@ -176,10 +200,14 @@ namespace Eyra {
 
                 if (us == WHITE) 
                 {
+                    hash ^= zobrist.CastlingKey(info.castling);
                     info.castling &= ~0b0011;
+                    hash ^= zobrist.CastlingKey(info.castling);
                 } else 
                 {
+                    hash ^= zobrist.CastlingKey(info.castling);
                     info.castling &= ~0b1100;
+                    hash ^= zobrist.CastlingKey(info.castling);
                 }
 
                 break;
@@ -198,7 +226,9 @@ namespace Eyra {
             {
                 SetSquare(to, moving);
                 
+                hash ^= zobrist.EnPassantKey(info.ep_square);
                 info.ep_square = Square(to + (us == WHITE ? -8 : 8));
+                hash ^= zobrist.EnPassantKey(info.ep_square);
 
                 break;
             }
@@ -246,20 +276,26 @@ namespace Eyra {
         // If rook moves from its starting square, remove right
         if (castling_mask[from] && TypeOf(moving) == ROOK) 
         {
+            hash ^= zobrist.CastlingKey(info.castling);
             info.castling &= ~castling_mask[from];
+            hash ^= zobrist.CastlingKey(info.castling);
         }
 
         // If piece captures rook, remove right
         if (castling_mask[to] && captured != NO_PIECE && TypeOf(captured) == ROOK) 
         {
+            hash ^= zobrist.CastlingKey(info.castling);
             info.castling &= ~castling_mask[to];
+            hash ^= zobrist.CastlingKey(info.castling);
         }
 
         // King Moved
         if (TypeOf(moving) == KING) 
         {
             const uint8_t king_mask = us == WHITE ? (0b0001 | 0b0010) : (0b0100 | 0b1000);
+            hash ^= zobrist.CastlingKey(info.castling);
             info.castling &= ~king_mask;
+            hash ^= zobrist.CastlingKey(info.castling);
         }
 
         // Update 50 move rule
@@ -312,6 +348,8 @@ namespace Eyra {
         info.castling = undo_info.castling;
         info.ep_square = undo_info.ep_square;
         info.rule_50 = undo_info.rule_50;
+
+        
 
 
         if (move == 0) 
@@ -394,10 +432,37 @@ namespace Eyra {
             }
         }
 
+        hash = undo_info.hash;
+
 
     }
 
     // ======================= Utilities & Helpers =======================
+
+    namespace {
+        Key ComputeHash(const Position& pos) {
+            Key h = 0;
+
+            for (Square square = A1; square < NO_SQUARE; ++square) {
+                Piece piece = pos.GetPiece(square);
+                if (piece != NO_PIECE) {
+                    h ^= zobrist.GetPieceKey(piece, square);
+                }
+            }
+
+            if (pos.SideToMove() == BLACK) {
+                h ^= zobrist.SideKey();
+            }
+
+            h ^= zobrist.CastlingKey(pos.GetCastlingRights());
+
+            if (pos.GetEPSquare() != NO_SQUARE) {
+                h ^= zobrist.EnPassantKey(pos.GetEPSquare());
+            }
+
+            return h;
+        }
+    } // namespace anonymous
 
     // Parses a Forsyth-Edwards Notation string
     void Position::ParseFEN(std::string_view fen) 
@@ -406,6 +471,11 @@ namespace Eyra {
         ClearPosition();
 
         if (fen == "") fen = STARTING_FEN;
+
+        std::string fen_str(fen);
+        std::istringstream ss(fen_str);
+        std::string board, side, castling, ep, halfmove;
+
 
         int rank = 7;
         int file = 0;
@@ -456,8 +526,7 @@ namespace Eyra {
                     default: throw std::invalid_argument("Invalid Piece in Board field");
                 }
 
-                pieces[rank << 3 | file] = p;
-                bitboards[p] |= 1ULL << (rank << 3 | file);
+                SetSquare(Square(rank << 3 | file), p);
                 ++file;
             }
             ++i;
@@ -512,12 +581,16 @@ namespace Eyra {
             fen.remove_prefix(3);
         }
 
-        size_t space = fen.find(' ');
-        if (space == std::string_view::npos)
-            space = fen.size();
-            
-        info.rule_50 = std::stoi(std::string(fen.substr(0, space)));
-
+        if (!fen.empty()) 
+        {
+            size_t space = fen.find(' ');
+            if (space == std::string_view::npos)
+                space = fen.size();
+                
+            info.rule_50 = std::stoi(std::string(fen.substr(0, space)));
+        }
+        
+        hash = ComputeHash(*this);
 
         UpdateOccupancy();
     }
@@ -548,6 +621,8 @@ namespace Eyra {
         string << "Castling rights: \n";
         string << ((info.castling & 1) != 0 ? "White Kingside\n" : "") << ((info.castling & 2) != 0 ? "White Queenside\n" : "") << ((info.castling & 4) != 0 ? "Black Kingside\n" : "") << ((info.castling & 8) != 0 ? "Black Queenside\n" : "") << "\n\n";   
         string << "En Passant Square: " << (info.ep_square == NO_SQUARE ? "-" : SquareToString(info.ep_square)) << "\n";
+
+        string << "Hash: " << hash << "\n";
         
         return string.str();
     }
@@ -607,6 +682,22 @@ namespace Eyra {
     bool Position::IsInCheck () const 
     {
         return IsInCheck(SideToMove());
+    }
+
+    bool Position::IsRepetition() const 
+    {
+        return info_history[ply - 1].hash == info_history[ply - 5].hash && info_history[ply - 1].hash == info_history[ply - 9].hash;
+    }
+
+    bool Position::IsLegal(Move move)
+    {
+        if (move == 0) return false;
+
+        MoveList moves;
+        MoveGen::GenerateMoves(*this, moves);
+
+        return moves.Contains(move);
+        
     }
 
     bool Position::CanCastleKingside () const 

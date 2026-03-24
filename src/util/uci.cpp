@@ -12,7 +12,7 @@ namespace Eyra
 
     // ======================= Logging Functions =======================
 
-    void UCI::InfoDepth (int depth, int eval, uint64_t nodes, uint64_t elapsed, const std::vector<Move>& pv) 
+    void UCI::InfoDepth (int depth, int eval, uint64_t nodes, uint64_t elapsed, const std::vector<Move>& pv, int hashfull) 
     {
         std::string score;
 
@@ -36,6 +36,7 @@ namespace Eyra
         " nodes " << nodes << 
         " nps " << (nodes * 1000 / elapsed) << // Max by 1 to prevent division by 0
         " time " << elapsed << 
+        " hashfull " << hashfull <<
         " pv ";
 
         for (Move move: pv) 
@@ -256,6 +257,7 @@ namespace Eyra
             {
                 Stop();
                 Engine::ResetKillers();
+                Engine::tt.Clear();
             } 
             
             else if (command == "d") 
