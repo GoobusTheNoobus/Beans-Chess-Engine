@@ -7,7 +7,6 @@ namespace Eyra
 {
 
 // ======================= Transposition Table Functions =======================
-// TO-DO: Finish TT Impl
 
 TranspositionTable::TranspositionTable(size_t mb) 
 {
@@ -251,10 +250,10 @@ namespace Engine
 
     int Evaluate(Position& pos)
     {
-        static constexpr int knight_mobility_bonus = 3;
+        static constexpr int knight_mobility_bonus = 2;
         static constexpr int bishop_mobility_bonus = 2;
-        static constexpr int rook_mobility_bonus   = 3;
-        static constexpr int queen_mobility_bonus  = 2;
+        static constexpr int rook_mobility_bonus   = 1;
+        static constexpr int queen_mobility_bonus  = 1;
 
         if (pos.GetRuleFifty() >= 100)
             return 0;
@@ -268,15 +267,16 @@ namespace Engine
             while (bb)
             {
                 int sq = ctz(bb);
-                sq = white ? sq: FlipIndex(Square(sq));
+                int pst_index = white ? sq: FlipIndex(Square(sq));
                 bb &= bb - 1;
 
                 // Material
-                int mg = mg_pst[pt][sq] + mg_value[pt];
-                int eg = eg_pst[pt][sq] + eg_value[pt];
+                int mg = mg_pst[pt][pst_index] + mg_value[pt];
+                int eg = eg_pst[pt][pst_index] + eg_value[pt];
 
                 int val = static_cast<int>(weight * eg + (1 - weight) * mg);
 
+                /*
                 // Mobility
                 if (pt == KNIGHT) 
                     val += popcount(Bitboards::GetKnightAttacks(Square(sq))) * knight_mobility_bonus;
@@ -290,8 +290,11 @@ namespace Engine
                 else if (pt == QUEEN && weight > 0.5)
                     val += popcount(Bitboards::GetBishopAttacks(Square(sq), pos.GetOccupancy()) | Bitboards::GetRookAttacks(Square(sq), pos.GetOccupancy())) * queen_mobility_bonus;
 
+                */
                 if (white) score += val;
                 else       score -= val;
+                
+                
             }
         };
 
@@ -312,7 +315,8 @@ namespace Engine
         eval_piece(pos.GetBitboard(B_KING),   KING,   false);
 
         
-
+        // Normalize score if early in the game
+        score = score / (2 - weight);
 
         score = std::clamp(score, -MAX_CP, MAX_CP);
 
@@ -496,11 +500,11 @@ namespace Engine
             // if (tt_score > MAX_CP)  tt_score -= plies_from_root;
             // if (tt_score < -MAX_CP) tt_score += plies_from_root;
 
-            if (entry->flag == TTFlag::EXACT)      return entry->eval;
-            if (entry->flag == TTFlag::LOWERBOUND) alpha = std::max<int>(alpha, entry->eval);
-            if (entry->flag == TTFlag::UPPERBOUND) beta  = std::min<int>(beta, entry->eval);
+            if (entry->flag == TTFlag::EXACT)      return tt_score;
+            if (entry->flag == TTFlag::LOWERBOUND) alpha = std::max<int>(alpha, tt_score);
+            if (entry->flag == TTFlag::UPPERBOUND) beta  = std::min<int>(beta, tt_score);
 
-            if (alpha >= beta) return tt_score;
+            // if (alpha >= beta && entry->flag == TTFlag::EXACT) return tt_score;
         } 
         
 

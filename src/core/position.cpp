@@ -86,7 +86,11 @@ namespace Eyra {
         info.rule_50 = 0;
         side_to_move = WHITE;
 
-        hash = 0;
+        hash = 0ULL;
+
+        std::fill(move_history, move_history + ply, 0);
+        std::fill(info_history, info_history + ply, UndoInfo{});
+        ply = 0;
     }
 
     void Position::UpdateOccupancy() 
@@ -158,16 +162,17 @@ namespace Eyra {
 
         // Append all info before making move
         move_history[ply] = move;
-        info_history[ply] = UndoInfo{hash, info.rule_50, info.ep_square, info.castling, pieces[to]};
+        info_history[ply] = UndoInfo{hash, info.rule_50, info.ep_square, info.castling, captured};
         // TO-DO: Add Hash
         ply++;
 
+        hash ^= zobrist.SideKey();
         side_to_move = Opposite(side_to_move);
         
         if (info.ep_square != NO_SQUARE) {
             hash ^= zobrist.EnPassantKey(info.ep_square);
             info.ep_square = NO_SQUARE;
-            hash ^= zobrist.EnPassantKey(info.ep_square);
+            // hash ^= zobrist.EnPassantKey(info.ep_square);
         }
 
         
@@ -340,6 +345,7 @@ namespace Eyra {
     void Position::UndoMove() 
     {
         side_to_move = Opposite(side_to_move);
+        hash ^= zobrist.SideKey();
 
         --ply;
         Move move = move_history[ply];
@@ -686,7 +692,17 @@ namespace Eyra {
 
     bool Position::IsRepetition() const 
     {
-        return info_history[ply - 1].hash == info_history[ply - 5].hash && info_history[ply - 1].hash == info_history[ply - 9].hash;
+        // Need at least 4 plies for a repetition to be possible
+        for (int i = ply - 2; i >= 0; i -= 2) 
+        {
+            if (i < 0) break;
+
+            if (info_history[i].hash == hash) return true;
+            // Stop at irreversible moves
+            if (info_history[i].rule_50 == 0) break;
+        }
+
+        return false;
     }
 
     bool Position::IsLegal(Move move)
